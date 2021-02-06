@@ -27,6 +27,8 @@ import urllib.parse
 import zipfile
 import warnings
 import weakref
+import time
+import os
 
 import aioec
 import aiohttp
@@ -123,6 +125,9 @@ class Emotes(commands.Cog):
 		if isinstance(error, commands.NoPrivateMessage):
 			await context.send(
 				f'{utils.SUCCESS_EMOJIS[False]} Sorry, this command may only be used in a server.')
+
+		if isinstance(error, commands.CommandOnCooldown):
+			await context.send(f'{utils.SUCCESS_EMOJIS[False]} This command has a cooldown. Try again in {int(error.retry_after) + 1} seconds.')
 
 	@commands.command(usage='[name] <image URL or custom emote>')
 	async def add(self, context, *args):
@@ -244,6 +249,7 @@ class Emotes(commands.Cog):
 	@emote_type_filter_default
 	@commands.command()
 	@commands.bot_has_permissions(attach_files=True)
+	@commands.cooldown(1, 20, type=commands.BucketType.guild)
 	async def export(self, context, image_type='all'):
 		"""Export all emotes from this server to a zip file, suitable for use with the import command.
 
@@ -323,6 +329,7 @@ class Emotes(commands.Cog):
 			count += 1
 
 	@commands.command(name='import', aliases=['add-zip', 'add-tar', 'add-from-zip', 'add-from-tar'])
+	@commands.cooldown(1, 20, type=commands.BucketType.guild)
 	async def import_(self, context, url=None):
 		"""Add several emotes from a .zip or .tar archive.
 
@@ -573,6 +580,50 @@ class Emotes(commands.Cog):
 			raise commands.UserInputError('Sorry, you took too long. Try again.')
 
 		return candidates[int(message.content)-1]
+
+	@commands.command(aliases=['html'])
+	@commands.bot_has_permissions(attach_files=True)
+	@commands.cooldown(1, 20, type=commands.BucketType.guild)
+	async def archive(self, ctx):
+		"""Outputs an HTML file containing all of the server's emotes.
+		At this time, this command does not have any parameters."""
+
+		if not(ctx.guild) or ctx.author.bot:
+			return
+
+		print("Recieved archive request")
+
+		emojis = ctx.guild.emojis
+		emoteNames = []
+		emoteUrls = []
+		emoteHtml = []
+
+		for emoji in emojis:
+			emoteNames.append(emoji.name)
+			emoteUrls.append(emoji.url)
+
+		i = 0
+		while i < len(emoteNames):
+			emoteHtml.append('\t<img title=":%s:" alt=":%s:" src="%s">' % (emoteNames[i], emoteNames[i], emoteUrls[i]))
+			i += 1
+
+		body = "\n".join(emoteHtml)
+		serverName = ctx.guild.name
+		localtime = time.localtime()
+		currentDate = time.strftime("%B %d, %Y", localtime)
+		currentTime = time.strftime("%H:%M %Z", localtime)
+
+		fullHtml = '<!DOCTYPE html>\n<html>\n<head>\n\t<meta charset="UTF-8">\n\t<meta name="viewport" content="width=device-width, initial-scale=1.0">\n\t<meta name="robots" content="noindex">\n\t<style>\n\t\tbody {\n\t\t\tfont-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Open Sans", sans-serif;\n\t\t\tfont-size: 1.25rem;\n\t\t\tmargin: 8px;\n\t\t\tbackground-color: #2f3136;\n\t\t\tcolor: #ffffff;\n\t\t}\n\t\th1, p {\n\t\t\tmargin: 0.5rem 0;\n\t\t}\n\t\timg {\n\t\t\tmax-width: 64px;\n\t\t\tmax-height: 64px;\n\t\t\tmargin: 5px 2px;\n\t\t\tvertical-align: middle;\n\t\t}\n\t</style>\n\t<title>%s Emote Archive (%s)</title>\n\t<meta name="og:title" content="%s Emote Archive (%s)">\n</head>\n<body>\n\t<h1>%s Emote Archive</h1>\n\t<p>Archived on %s at %s</p>\n\t<p>On some browsers, you can hover over an emote to see its name.</p>\n%s\n</body>\n</html>' % (serverName, currentDate, serverName, currentDate, serverName, currentDate, currentTime, body)
+
+		filepath = "./generated/emote-archive-" + str(time.time_ns()) + ".html"
+		f = open(filepath, "x")
+		f.write(fullHtml)
+		f.close()
+
+		await ctx.send(content=ctx.author.mention, file=discord.File(filepath))
+
+		os.remove(filepath)
+		
 
 def setup(bot):
 	bot.add_cog(Emotes(bot))
