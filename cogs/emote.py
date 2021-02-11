@@ -581,6 +581,7 @@ class Emotes(commands.Cog):
 
 		return candidates[int(message.content)-1]
 
+	@public
 	@commands.command(aliases=['html'])
 	@commands.bot_has_permissions(attach_files=True)
 	@commands.cooldown(1, 20, type=commands.BucketType.guild)
