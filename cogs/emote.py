@@ -542,13 +542,19 @@ class Emotes(commands.Cog):
 			f'Total: **{total_emotes} / {emote_limit * 2}**')
 
 	@public
-	@commands.command(aliases=["embiggen"])
-	async def big(self, context, emote: discord.PartialEmoji):
-		"""Shows the original image for the given emote.
-
-		emote: the emote to embiggen.
+	@commands.command(aliases=["big", "embiggen"])
+	async def show(self, context, emote: discord.PartialEmoji):
+		"""Shows the full image for the given emote.
+		If the emote is from this server, then it will also show when the emote was added and who added it.
+		emote: the emote to show.
 		"""
-		await context.send(f'{emote.name}: {emote.url}')
+		try:
+			emoteFull = await context.guild.fetch_emoji(emote.id)
+			addtime = emoteFull.created_at.strftime("%d %B %Y at %H:%M UTC")
+			addedby = f'{emoteFull.user.name}#{emoteFull.user.discriminator}'
+			await context.send(f':{emoteFull.name}:\nAdded on {addtime} by {addedby}\n{emoteFull.url}')
+		except:
+			await context.send(f':{emote.name}: {emote.url}')
 
 	async def parse_emote(self, context, name_or_emote):
 		match = utils.emote.RE_CUSTOM_EMOTE.match(name_or_emote)
