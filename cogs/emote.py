@@ -29,6 +29,7 @@ import warnings
 import weakref
 import time
 import os
+import typing
 
 import aioec
 import aiohttp
@@ -543,11 +544,18 @@ class Emotes(commands.Cog):
 
 	@public
 	@commands.command(aliases=["big", "embiggen"])
-	async def show(self, context, emote: discord.PartialEmoji):
+	async def show(self, context, emote: typing.Union[discord.PartialEmoji, str]):
 		"""Shows the full image for the given emote.
 		If the emote is from this server, then it will also show when the emote was added and who added it.
 		emote: the emote to show.
 		"""
+		if type(emote) is discord.PartialEmoji:
+			await self.show_emote(context, emote)
+		else:
+			ParsedEmote = await self.parse_emote(context, emote)
+			await self.show_emote(context, ParsedEmote)
+
+	async def show_emote(self, context, emote):
 		try:
 			emoteFull = await context.guild.fetch_emoji(emote.id)
 			addtime = emoteFull.created_at.strftime("%d %B %Y at %H:%M UTC")
