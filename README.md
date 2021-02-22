@@ -4,6 +4,8 @@ Emote Manager is a souped up version of the Emoji settings screen in your server
 
 **Note:** both you and the bot will need the "Manage Emojis" permission to edit custom server emotes.
 
+[Bot Invite Link](https://discord.com/oauth2/authorize?client_id=806082338978398208&scope=bot&permissions=1074056256)
+
 ## Commands
 
 <p>
