@@ -61,7 +61,7 @@ def resize_until_small(image_data: io.BytesIO) -> None:
 						image_data.seek(0)
 						break
 
-				max_resolution //= 2
+				max_resolution //= 1.3333333333333333
 	except wand.exceptions.CoderError:
 		raise errors.InvalidImageError
 
