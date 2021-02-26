@@ -101,7 +101,15 @@ class Emotes(commands.Cog):
 		public_commands.add(command.qualified_name)
 		return command
 
+	dm_commands = set()
+	def dm_ok(command, dm_commands=dm_commands):
+		dm_commands.add(command.qualified_name)
+		return command
+
 	async def cog_check(self, context):
+		if (context.command.qualified_name in self.dm_commands) and (not context.guild):
+			return True
+
 		if not context.guild:
 			raise commands.NoPrivateMessage
 
@@ -543,17 +551,21 @@ class Emotes(commands.Cog):
 			f'Total: **{total_emotes} / {emote_limit * 2}**')
 
 	@public
+	@dm_ok
 	@commands.command(aliases=["big", "embiggen"])
 	async def show(self, context, emote: typing.Union[discord.PartialEmoji, str]):
 		"""Shows the full image for the given emote.
 		If the emote is from this server, then it will also show when the emote was added and who added it.
-		emote: the emote to show.
+
+		emote: the emote to show. It can be the emote itself (can be from any server), or the name of the emote (only for emotes from this server).
 		"""
 		if type(emote) is discord.PartialEmoji:
 			await self.show_emote(context, emote)
-		else:
+		elif context.guild:
 			ParsedEmote = await self.parse_emote(context, emote)
 			await self.show_emote(context, ParsedEmote)
+		else:
+			await context.send("You must specify an emote.")
 
 	async def show_emote(self, context, emote):
 		try:
@@ -603,6 +615,46 @@ class Emotes(commands.Cog):
 			raise commands.UserInputError('Sorry, you took too long. Try again.')
 
 		return candidates[int(message.content)-1]
+
+	# Cooldown is to prevent spam, as these messages can be quite long
+	@public
+	@dm_ok
+	@commands.command()
+	@commands.cooldown(1, 5, type=commands.BucketType.member)
+	async def identify(self, context, url):
+		"""Displays all the emotes used in a message.
+
+		url: The URL of the message you would like to identify the emotes of. Message must be from this server, unless you are running this command in DM.
+		"""
+		url_match = re.findall("^https://[a-z]*.?discord.com/channels/([0-9]{18})/([0-9]{18})/([0-9]{18})$", url)
+		if url_match:
+			if (not context.guild) or (url_match[0][0] == str(context.guild.id)):
+				try:
+					url_channel = self.bot.get_channel(int(url_match[0][1]))
+					url_message = await url_channel.fetch_message(int(url_match[0][2]))
+				except:
+					await context.send(f'{utils.SUCCESS_EMOJIS[False]} I cannot access this message.')
+				else:
+					em_match = re.findall("<(a)?:([A-z0-9-_]{2,32}):([0-9]{18})>", url_message.content)
+					if em_match:
+						emotes_in = []
+						emotes_out = []
+						for i in em_match:
+							# Removing duplicate list items
+							if i not in emotes_in:
+								emotes_in.append(i)
+						for emote in emotes_in:
+							if emote[0]:
+								emotes_out.append(f":{emote[1]}: https://cdn.discordapp.com/emojis/{emote[2]}.gif")
+							else:
+								emotes_out.append(f":{emote[1]}: https://cdn.discordapp.com/emojis/{emote[2]}.png")
+						await context.send("\n".join(emotes_out))
+					else:
+						await context.send("I did not find any emotes in this message.")
+			else:
+				await context.send(f'{utils.SUCCESS_EMOJIS[False]} You are only allowed to specify a message from within this server.')
+		else:
+			await context.send(f"{utils.SUCCESS_EMOJIS[False]} You did not specify a valid URL. You can get a message's URL by right clicking on it and selecting 'Copy Message Link'.")
 
 	@public
 	@commands.command(aliases=['html'])
