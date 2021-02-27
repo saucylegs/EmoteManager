@@ -570,11 +570,33 @@ class Emotes(commands.Cog):
 	async def show_emote(self, context, emote):
 		try:
 			emoteFull = await context.guild.fetch_emoji(emote.id)
-			addtime = emoteFull.created_at.strftime("%d %B %Y at %H:%M UTC")
-			addedby = f'{emoteFull.user.name}#{emoteFull.user.discriminator}'
-			await context.send(f':{emoteFull.name}:\nAdded on {addtime} by {addedby}\n{emoteFull.url}')
 		except:
 			await context.send(f':{emote.name}: {emote.url}')
+		else:
+			# Sending the message as an embed
+			embed = discord.Embed.from_dict({
+				"title": "Emote",
+				"type": "rich",
+				"color": 16763981,
+				"image": {
+					"url": f"{emoteFull.url}"
+				},
+				"fields": [{
+					"name": "Name",
+					"value": f":{emoteFull.name}:"
+				}, {
+					"name": "URL",
+					"value": f"{emoteFull.url}"
+				}, {
+					"name": "Added by",
+					"value": f"{emoteFull.user.name}#{emoteFull.user.discriminator} {emoteFull.user.mention}"
+				}],
+				"footer": {
+					"text": "Emote added on:"
+				},
+				"timestamp": f"{emoteFull.created_at}"
+			})
+			await context.send(embed=embed)
 
 	async def parse_emote(self, context, name_or_emote):
 		match = utils.emote.RE_CUSTOM_EMOTE.match(name_or_emote)
@@ -616,15 +638,17 @@ class Emotes(commands.Cog):
 
 		return candidates[int(message.content)-1]
 
-	# Cooldown is to prevent spam, as these messages can be quite long
 	@public
 	@dm_ok
 	@commands.command()
-	@commands.cooldown(1, 5, type=commands.BucketType.member)
-	async def identify(self, context, url):
-		"""Displays all the emotes used in a message.
+	async def identify(self, context, url, look_for="all"):
+		"""Displays names and URLs of all the emotes used in a message or reacted to a message.
 
 		url: The URL of the message you would like to identify the emotes of. Message must be from this server, unless you are running this command in DM.
+
+		If "message" is provided, then only emotes within the linked message will be returned.
+		If "reaction" is provided, then only reactions to the linked message will be returned.
+		If "all" is provided, then both will be returned. (default)
 		"""
 		url_match = re.findall("^https://[a-z]*.?discord.com/channels/([0-9]{18})/([0-9]{18})/([0-9]{18})$", url)
 		if url_match:
@@ -635,22 +659,33 @@ class Emotes(commands.Cog):
 				except:
 					await context.send(f'{utils.SUCCESS_EMOJIS[False]} I cannot access this message.')
 				else:
-					em_match = re.findall("<(a)?:([A-z0-9-_]{2,32}):([0-9]{18})>", url_message.content)
-					if em_match:
-						emotes_in = []
-						emotes_out = []
-						for i in em_match:
-							# Removing duplicate list items
-							if i not in emotes_in:
-								emotes_in.append(i)
-						for emote in emotes_in:
-							if emote[0]:
-								emotes_out.append(f":{emote[1]}: https://cdn.discordapp.com/emojis/{emote[2]}.gif")
-							else:
-								emotes_out.append(f":{emote[1]}: https://cdn.discordapp.com/emojis/{emote[2]}.png")
-						await context.send("\n".join(emotes_out))
+					results = []
+					if (look_for == "message") or (look_for == "all"):
+						em_match = re.findall("<(a)?:([A-z0-9-_]{2,32}):([0-9]{18})>", url_message.content)
+						if em_match:
+							emotes_in = []
+							for i in em_match:
+								# Removing duplicate list items
+								if i not in emotes_in:
+									emotes_in.append(i)
+							for emote in emotes_in:
+								if emote[0]:
+									results.append(f":{emote[1]}: https://cdn.discordapp.com/emojis/{emote[2]}.gif")
+								else:
+									results.append(f":{emote[1]}:\nhttps://cdn.discordapp.com/emojis/{emote[2]}.png")
+					if (look_for == "reaction") or (look_for == "all"):
+						if url_message.reactions:
+							for reaction in url_message.reactions:
+								if reaction.custom_emoji:
+									results.append(f"(reaction) :{reaction.emoji.name}: {reaction.emoji.url}")
+								else:
+									results.append(f"(reaction) {reaction.emoji} (Unicode emoji)")
+					if results == []:
+						await context.send("I did not see any emotes in this message.")
 					else:
-						await context.send("I did not find any emotes in this message.")
+						paginator = ListPaginator(context, results)
+						self.paginators.add(paginator)
+						await paginator.begin()
 			else:
 				await context.send(f'{utils.SUCCESS_EMOJIS[False]} You are only allowed to specify a message from within this server.')
 		else:
